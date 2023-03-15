@@ -1,0 +1,22 @@
+﻿@model IndexModel
+@{
+    ViewData["Title"] = "Welcome";
+}
+
+<div class="text-center">
+    <h1 class="display-4">@ViewData["Title"]</h1>
+    <p>Thank you for visiting our website. Please sign in to continue.</p>
+    <div class="d-flex justify-content-center">
+        <a class="btn btn-primary mx-3" asp-area="" asp-page="/Login">Login</a>
+    </div>
+</div>
+
+<style>
+    .btn {
+        font-size: 1.2rem;
+        padding: 10px 30px;
+        border-radius: 5px;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+</style>
