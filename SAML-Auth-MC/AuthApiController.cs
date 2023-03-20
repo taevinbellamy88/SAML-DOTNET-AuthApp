@@ -1,13 +1,13 @@
 ﻿using Amazon;
 using Amazon.CognitoIdentityProvider;
 using Amazon.CognitoIdentityProvider.Model;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Cors;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.IdentityModel.Tokens;
-using Microsoft.IdentityModel.Tokens.Saml2;
-using System.Text;
-using System.Xml;
+using Sustainsys.Saml2.AspNetCore2;
+using System.Security.Claims;
+
 
 namespace SAML_Auth_MC
 {
@@ -28,17 +28,19 @@ namespace SAML_Auth_MC
             response.Item = DateTime.Now.Ticks;
             return Ok200(response);
         }
+        [HttpPost("ping2")]
+        [Authorize]
+        public ActionResult<ItemResponse<object>> Ping2(UserAddModel user)
+        {
+            Logger.LogInformation("Ping endpoint firing");
+            ItemResponse<object> response = new ItemResponse<object>();
+            response.Item = DateTime.Now.Ticks;
+            return Ok200(response);
+        }
 
         [HttpPost("signup")]
         [AllowAnonymous]
         public void Create(UserAddModel user)
-        {
-            Console.WriteLine("Ping Firing");
-        }
-
-        [HttpPost("aws/callback/login")]
-        [AllowAnonymous]
-        public void RecieveAWSCognitoCallback()
         {
             Console.WriteLine("Ping Firing");
         }
@@ -105,84 +107,84 @@ namespace SAML_Auth_MC
 
         }
 
-        [HttpPost("signin-saml")]
+
+        /// <summary>
+        /// initiates the SAML2 authentication
+        /// </summary>
+        /// <returns></returns>
+        [HttpGet("initiate-saml")]
         [AllowAnonymous]
+        public IActionResult InitiateSaml()
+        {
+            return Challenge(new AuthenticationProperties { RedirectUri = "http://localhost:50000/api/auth/signin-saml" }, Saml2Defaults.Scheme);
+        }
+
+        [HttpGet("signin-saml")]
+        [Authorize]
         public async Task<IActionResult> OnSAML2_AzureAD_SignIn()
         {
-            // Read the SAML response from the request body as a byte array
-            using (var ms = new MemoryStream())
+            // Read the authenticated user's claims.
+            var claimsPrincipal = User as ClaimsPrincipal;
+
+            // You can access the user's claims, such as their email, name, etc., and use them as needed.
+            string userEmail = claimsPrincipal.FindFirstValue(ClaimTypes.Email);
+            string userName = claimsPrincipal.FindFirstValue(ClaimTypes.Name);
+
+
+            // Perform any additional actions, such as creating or updating the user in your application's database.
+            // Example:
+            // await _userService.UpsertUserAsync(userEmail, userName);
+
+            // Set authentication cookies, if not already set by the middleware.
+            // Example:
+            // await HttpContext.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, new ClaimsPrincipal(claimsIdentity));
+
+            // Redirect the user to the desired location, such as your Angular application's callback page.
+            return Redirect("http://localhost:4200/callbacks?code=authenticated-in-dotnet");
+        }
+
+        /// <summary>
+        /// initiates the Google SSO authentication
+        /// </summary>
+        /// <returns></returns>
+        [HttpPost("callbacks/google")]
+        [AllowAnonymous]
+        public async Task<IActionResult> LoginGoogleUser([FromBody] GoogleCallbackModel model)
+        {
+            try
             {
-                await Request.Body.CopyToAsync(ms);
-                var base64SamlResponse = ms.ToArray();
+                // Validate the g_csrf_token to protect against CSRF attacks
+                // ... (implement your CSRF token validation logic here)
 
-                Console.WriteLine("base64SamlResponse: " + Encoding.UTF8.GetString(base64SamlResponse));
+                // Exchange the authorization code (credential) for an access token and ID token
 
-                // Decode the base64-encoded SAML response
-                var samlResponseBytes = Convert.FromBase64String(Encoding.UTF8.GetString(base64SamlResponse));
-                var samlResponse = Encoding.UTF8.GetString(samlResponseBytes);
+                // Verify the ID token and retrieve the user's claims
 
-                Console.WriteLine("samlResponse: " + samlResponse);
+                // Authenticate the user with your application
+                // ... (authenticate the user and create a session or a local identity)
 
-                // Parse the SAML response XML
-                try
-                {
-                    var xmlReader = XmlReader.Create(new StringReader(samlResponse));
-
-                    var tokenHandler = new Saml2SecurityTokenHandler();
-
-                    var securityToken = tokenHandler.ReadToken(xmlReader) as Saml2SecurityToken;
-
-                    var assertion = securityToken.Assertion;
-
-                    var saml2Assertion = new Saml2SecurityToken(assertion).Assertion;
-
-                    // Configure SAML token validation parameters
-                    var validationParameters = new TokenValidationParameters
-                    {
-                        ValidateIssuerSigningKey = false, // Set to true if you want to validate the signing key
-                        ValidAudience = "https://login.microsoftonline.com/5f5d4dc8-22fe-49ca-9e96-343f047d47cc/saml2", // Set the expected audience value
-                        ValidIssuer = "https://sts.windows.net/5f5d4dc8-22fe-49ca-9e96-343f047d47cc/", // Set the expected issuer value
-                        ValidateIssuer = true, // Set to true to validate the issuer value
-                        ValidateAudience = true, // Set to true to validate the audience value
-                        ValidateLifetime = true, // Set to true to validate the token expiration
-                        ClockSkew = TimeSpan.FromMinutes(5) // Set the maximum clock skew
-                    };
-
-                    // Validate the SAML token using the validation parameters
-                    try
-                    {
-                        var serializer = new Saml2Serializer();
-                        using (var writer = XmlWriter.Create(new StringWriter()))
-                        {
-                            serializer.WriteAssertion(writer, saml2Assertion);
-                            writer.Flush();
-
-                            new Saml2SecurityTokenHandler().ValidateToken(writer.ToString(), validationParameters, out var validatedToken);
-                        }
-
-                        // The SAML response is valid
-                        Console.WriteLine("SAML response is valid");
-
-                        // Add your code to handle the authenticated user here
-
-                        return Ok();
-                    }
-                    catch (Exception ex)
-                    {
-                        // The SAML response is invalid
-                        Console.WriteLine("SAML response is invalid: " + ex.Message);
-
-                        return Unauthorized();
-                    }
-                }
-                catch (Exception ex)
-                {
-                    // There was an error parsing the SAML response XML
-                    Console.WriteLine("Error parsing SAML response: " + ex.Message);
-
-                    return BadRequest();
-                }
+                return Ok();
             }
+            catch (NotAuthorizedException e)
+            {
+                Console.WriteLine($"Authentication failed for user: {e.Message}");
+                return Unauthorized();
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine($"Error authenticating user: {e.Message}");
+                return StatusCode(500, e.Message);
+            }
+        }
+
+        private async Task ValidateGoogleIdTokenAsync(object idToken)
+        {
+            throw new NotImplementedException();
+        }
+
+        private async Task GetGoogleAccessTokenAsync(string credential)
+        {
+            throw new NotImplementedException();
         }
     }
 }
