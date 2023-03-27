@@ -149,7 +149,8 @@ namespace SAML_Auth_MC.ApiControllers
             await HttpContext.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, new ClaimsPrincipal(claimsIdentity));
 
             // Redirect the user to the desired location, such as your Angular application's callback page.
-            return Redirect("http://localhost:4200/callbacks?code=authenticated-in-dotnet");
+            string url = $"http://localhost:4200/callbacks?code={model.Email}&tokenType=SAML2.0";
+            return Redirect(url);
         }
 
         /// <summary>
