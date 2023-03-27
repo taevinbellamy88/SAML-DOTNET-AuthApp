@@ -133,6 +133,13 @@ namespace SAML_Auth_MC.ApiControllers
             string givenName = claimsPrincipal.FindFirstValue(ClaimTypes.GivenName);
             string surname = claimsPrincipal.FindFirstValue(ClaimTypes.Surname);
 
+            UserAddModel model = new UserAddModel()
+            {
+                Email = userEmail,
+                FirstName = givenName,
+                LastName = surname,
+            };
+
             // Create a ClaimsIdentity using the claims from the authenticated user.
             var claimsIdentity = new ClaimsIdentity(claimsPrincipal.Claims, CookieAuthenticationDefaults.AuthenticationScheme);
 
