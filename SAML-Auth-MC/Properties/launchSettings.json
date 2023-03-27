@@ -7,7 +7,7 @@
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development",
         "GOOGLE_CLIENT_ID": "495369526983-7qn1hnod9fkhr5tff8a4rverl5a3gt0g.apps.googleusercontent.com",
-        "GOOGLE_CLIENT_SECRET": "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\\r\\n"
+        "GOOGLE_CLIENT_SECRET": "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"
       },
       "dotnetRunMessages": true,
       "applicationUrl": "http://localhost:50000/api/"

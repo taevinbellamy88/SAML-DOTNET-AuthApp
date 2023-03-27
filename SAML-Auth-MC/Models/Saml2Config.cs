@@ -2,7 +2,7 @@
 using Sustainsys.Saml2.Metadata;
 using System.Security.Cryptography.X509Certificates;
 
-namespace SAML_Auth_MC
+namespace SAML_Auth_MC.Models
 {
     public class Saml2Config
     {

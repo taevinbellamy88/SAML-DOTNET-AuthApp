@@ -2,14 +2,17 @@
 using Amazon.CognitoIdentityProvider;
 using Amazon.CognitoIdentityProvider.Model;
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Cors;
 using Microsoft.AspNetCore.Mvc;
+using SAML_Auth_MC.Models;
+using SAML_Auth_MC.Responses;
 using Sustainsys.Saml2.AspNetCore2;
 using System.Security.Claims;
+using RouteAttribute = Microsoft.AspNetCore.Mvc.RouteAttribute;
 
-
-namespace SAML_Auth_MC
+namespace SAML_Auth_MC.ApiControllers
 {
     [Route("api/auth")]
     [ApiController]
@@ -28,6 +31,7 @@ namespace SAML_Auth_MC
             response.Item = DateTime.Now.Ticks;
             return Ok200(response);
         }
+
         [HttpPost("ping2")]
         [Authorize]
         public ActionResult<ItemResponse<object>> Ping2(UserAddModel user)
@@ -59,31 +63,26 @@ namespace SAML_Auth_MC
 
             provider.Config.Validate();
 
-            var request = new AdminInitiateAuthRequest
+            var request = new InitiateAuthRequest
             {
-                UserPoolId = userPoolId,
+                AuthFlow = AuthFlowType.USER_PASSWORD_AUTH,
                 ClientId = clientId,
-                AuthFlow = AuthFlowType.ADMIN_USER_PASSWORD_AUTH,
-                AuthParameters = new Dictionary<string, string>()
+                AuthParameters = new Dictionary<string, string>
                 {
                     {"USERNAME", user.Email},
-                    {"PASSWORD", user.Password},
+                    {"PASSWORD", user.Password}
                 }
             };
 
             try
             {
-                var response = await provider.AdminInitiateAuthAsync(request);
+                var response = await provider.InitiateAuthAsync(request);
 
                 // If the authentication is successful, the response will contain an "AuthenticationResult"
                 var authenticationResult = response.AuthenticationResult;
                 if (authenticationResult != null)
                 {
                     Console.WriteLine($"User {user.Email} authenticated successfully.");
-
-                    // Add the token to the HTTP Authorization header using the "Bearer" scheme
-                    var token = authenticationResult.AccessToken;
-                    HttpContext.Response.Headers.Add("Authorization", $"Bearer {token}");
 
                     // You can return an access token or other user information here
                     return Ok(authenticationResult);
@@ -107,7 +106,6 @@ namespace SAML_Auth_MC
 
         }
 
-
         /// <summary>
         /// initiates the SAML2 authentication
         /// </summary>
@@ -119,6 +117,10 @@ namespace SAML_Auth_MC
             return Challenge(new AuthenticationProperties { RedirectUri = "http://localhost:50000/api/auth/signin-saml" }, Saml2Defaults.Scheme);
         }
 
+        /// <summary>
+        /// SAML Handler
+        /// </summary>
+        /// <returns></returns>
         [HttpGet("signin-saml")]
         [Authorize]
         public async Task<IActionResult> OnSAML2_AzureAD_SignIn()
@@ -126,20 +128,92 @@ namespace SAML_Auth_MC
             // Read the authenticated user's claims.
             var claimsPrincipal = User as ClaimsPrincipal;
 
-            // You can access the user's claims, such as their email, name, etc., and use them as needed.
+            string userEmail = claimsPrincipal.FindFirstValue(ClaimTypes.Email);
+            string userName = claimsPrincipal.FindFirstValue(ClaimTypes.Name);
+            string givenName = claimsPrincipal.FindFirstValue(ClaimTypes.GivenName);
+            string surname = claimsPrincipal.FindFirstValue(ClaimTypes.Surname);
+
+            // Create a ClaimsIdentity using the claims from the authenticated user.
+            var claimsIdentity = new ClaimsIdentity(claimsPrincipal.Claims, CookieAuthenticationDefaults.AuthenticationScheme);
+
+
+            // Set authentication cookies
+
+            await HttpContext.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, new ClaimsPrincipal(claimsIdentity));
+
+            // Redirect the user to the desired location, such as your Angular application's callback page.
+            return Redirect("http://localhost:4200/callbacks?code=authenticated-in-dotnet");
+        }
+
+        /// <summary>
+        /// Initiates the User authentication
+        /// </summary>
+        /// <returns></returns>
+        [HttpGet("isAuthenticated")]
+        [AllowAnonymous]
+        public IActionResult AuthenticateUser()
+        {
+            if (User.Identity.IsAuthenticated)
+            {
+                var email = User.FindFirst(ClaimTypes.Email)?.Value;
+                var name = User.FindFirst(ClaimTypes.Name)?.Value;
+                var authenticatedUser = new { Email = email, Name = name };
+                return Ok(authenticatedUser);
+            }
+            else
+            {
+                return Ok(false);
+            }
+        }
+
+        [HttpPost("logoutUser")]
+        [AllowAnonymous]
+        public IActionResult Logout()
+        {
+            HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+            return Ok();
+        }
+
+        /// <summary>
+        /// initiates the Google authentication
+        /// </summary>
+        /// <returns></returns>
+        [HttpGet("initiate-google")]
+        [AllowAnonymous]
+        public IActionResult InitiateGoogle()
+        {
+            return Challenge(new AuthenticationProperties { RedirectUri = "/api/auth/callbacks/google" }, Startup.GoogleOAuthScheme);
+        }
+
+        /// <summary>
+        /// Google Handler
+        /// </summary>
+        [HttpGet("google")]
+        [AllowAnonymous]
+        public async Task<IActionResult> OnGoogleSignIn()
+        {
+            // Read the external login info
+            var info = await HttpContext.AuthenticateAsync(Startup.GoogleOAuthScheme);
+            if (info == null || !info.Succeeded)
+            {
+                return BadRequest("Error while signing in with Google.");
+            }
+
+            // Read the authenticated user's claims
+            var claimsPrincipal = info.Principal;
             string userEmail = claimsPrincipal.FindFirstValue(ClaimTypes.Email);
             string userName = claimsPrincipal.FindFirstValue(ClaimTypes.Name);
 
-
-            // Perform any additional actions, such as creating or updating the user in your application's database.
-            // Example:
+            // Perform any additional actions
             // await _userService.UpsertUserAsync(userEmail, userName);
 
-            // Set authentication cookies, if not already set by the middleware.
-            // Example:
-            // await HttpContext.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, new ClaimsPrincipal(claimsIdentity));
+            // Sign the user in with a cookie
+            await HttpContext.SignInAsync(
+                CookieAuthenticationDefaults.AuthenticationScheme,
+                claimsPrincipal,
+                new AuthenticationProperties { IsPersistent = true });
 
-            // Redirect the user to the desired location, such as your Angular application's callback page.
+            // Redirect the user
             return Redirect("http://localhost:4200/callbacks?code=authenticated-in-dotnet");
         }
 
@@ -149,7 +223,7 @@ namespace SAML_Auth_MC
         /// <returns></returns>
         [HttpPost("callbacks/google")]
         [AllowAnonymous]
-        public async Task<IActionResult> LoginGoogleUser([FromBody] GoogleCallbackModel model)
+        public async Task<IActionResult> LoginGoogleUser(string credential, string g_csrf_token)
         {
             try
             {

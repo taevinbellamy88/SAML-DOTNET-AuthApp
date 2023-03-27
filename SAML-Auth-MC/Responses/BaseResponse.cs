@@ -1,4 +1,4 @@
-﻿namespace SAML_Auth_MC
+﻿namespace SAML_Auth_MC.Responses
 {
     public class BaseResponse
     {
@@ -9,7 +9,7 @@
         public BaseResponse()
         {
             //Sabio: This TxId we are just faking to demo the purpose
-            this.TransactionId = Guid.NewGuid().ToString();
+            TransactionId = Guid.NewGuid().ToString();
         }
     }
 }

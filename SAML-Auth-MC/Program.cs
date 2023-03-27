@@ -1,6 +1,7 @@
 using Amazon;
 using Amazon.CognitoIdentityProvider;
 using Amazon.Extensions.NETCore.Setup;
+using SAML_Auth_MC.Models;
 
 namespace SAML_Auth_MC
 {
@@ -39,12 +40,17 @@ namespace SAML_Auth_MC
                     webBuilder.UseKestrel(options =>
                     {
                         // Configure Kestrel options here
-                        options.ListenAnyIP(5000, listenOptions =>
+                        options.ListenAnyIP(50000, listenOptions =>
                         {
                             // Configure listen options here
                         });
                     })
                     .UseStartup<Startup>();
+                }).ConfigureLogging(logging =>
+                {
+                    logging.ClearProviders();
+                    logging.AddConsole();
+                    logging.AddDebug();
                 });
     }
 }

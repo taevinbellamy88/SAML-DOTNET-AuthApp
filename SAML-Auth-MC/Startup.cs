@@ -1,7 +1,9 @@
 ﻿using Amazon.CognitoIdentityProvider;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authentication.OAuth;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
+using SAML_Auth_MC.Models;
 using Sustainsys.Saml2;
 using Sustainsys.Saml2.AspNetCore2;
 using Sustainsys.Saml2.Metadata;
@@ -14,6 +16,8 @@ namespace SAML_Auth_MC
 {
     public class Startup
     {
+        public const string GoogleOAuthScheme = "Google";
+
         public Startup(IConfiguration configuration, IWebHostEnvironment env)
         {
             Configuration = configuration;
@@ -42,17 +46,23 @@ namespace SAML_Auth_MC
 
             services.ConfigureApplicationCookie(options =>
             {
+                options.Cookie.Name = "SAML-AUTH-MC";
                 options.Cookie.SameSite = SameSiteMode.None;
-                options.Cookie.SecurePolicy = Env.IsDevelopment()
-                    ? CookieSecurePolicy.SameAsRequest
-                    : CookieSecurePolicy.Always;
+                options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+                options.Cookie.HttpOnly = true;
+                options.ExpireTimeSpan = TimeSpan.FromDays(14);
+                options.SlidingExpiration = true;
+                options.LoginPath = "/Account/Login";
+                options.LogoutPath = "/Account/Logout";
+                options.AccessDeniedPath = "/Account/AccessDenied";
             });
             services.Configure<CookiePolicyOptions>(options =>
             {
-                options.MinimumSameSitePolicy = SameSiteMode.None;
+                options.MinimumSameSitePolicy = SameSiteMode.Unspecified;
                 options.HttpOnly = Microsoft.AspNetCore.CookiePolicy.HttpOnlyPolicy.Always;
                 options.Secure = Microsoft.AspNetCore.Http.CookieSecurePolicy.Always;
             });
+
 
             // Add authentication services
             services.AddAuthentication(options =>
@@ -63,9 +73,11 @@ namespace SAML_Auth_MC
                 options.DefaultChallengeScheme = Saml2Defaults.Scheme;
             }).AddCookie(options =>
             {
-                options.Cookie.SameSite = SameSiteMode.None;
+
+                options.Cookie.SameSite = SameSiteMode.Lax;
                 options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
                 options.Cookie.HttpOnly = true;
+                options.ExpireTimeSpan = TimeSpan.FromMinutes(15);
             })
             // Add SAML2 authentication
             .AddSaml2(options =>
@@ -86,33 +98,47 @@ namespace SAML_Auth_MC
                     });
 
             })
+
             // Add Google OAuth2 authentication
-              .AddOAuth("Google", options =>
+              .AddOAuth(GoogleOAuthScheme, options =>
               {
+                  // SignInScheme configuration
+                  options.SignInScheme = CookieAuthenticationDefaults.AuthenticationScheme;
                   options.ClientId = Environment.GetEnvironmentVariable("GOOGLE_CLIENT_ID");
                   options.ClientSecret = Environment.GetEnvironmentVariable("GOOGLE_CLIENT_SECRET");
-                  options.CallbackPath = "/api/auth/callbacks/google";
+                  options.CallbackPath = new PathString("/api/auth/callbacks/google");
                   options.AuthorizationEndpoint = "https://accounts.google.com/o/oauth2/v2/auth";
                   options.TokenEndpoint = "https://www.googleapis.com/oauth2/v4/token";
                   options.UserInformationEndpoint = "https://www.googleapis.com/oauth2/v2/userinfo";
+
+                  options.Scope.Add("openid");
+                  options.Scope.Add("email");
+                  options.Scope.Add("profile");
 
                   options.ClaimActions.MapJsonKey(ClaimTypes.NameIdentifier, "id");
                   options.ClaimActions.MapJsonKey(ClaimTypes.Name, "name");
                   options.ClaimActions.MapJsonKey(ClaimTypes.GivenName, "given_name");
                   options.ClaimActions.MapJsonKey(ClaimTypes.Surname, "family_name");
                   options.ClaimActions.MapJsonKey(ClaimTypes.Email, "email");
-
-                  options.Events.OnCreatingTicket = async ctx =>
+                  options.Events = new OAuthEvents
                   {
-                      var request = new HttpRequestMessage(HttpMethod.Get, ctx.Options.UserInformationEndpoint);
-                      request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-                      request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", ctx.AccessToken);
+                      OnCreatingTicket = async ctx =>
+                      {
+                          var request = new HttpRequestMessage(HttpMethod.Get, ctx.Options.UserInformationEndpoint);
+                          request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+                          request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", ctx.AccessToken);
 
-                      var response = await ctx.Backchannel.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ctx.HttpContext.RequestAborted);
-                      response.EnsureSuccessStatusCode();
+                          var response = await ctx.Backchannel.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ctx.HttpContext.RequestAborted);
+                          response.EnsureSuccessStatusCode();
 
-                      using var jsonDocument = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync());
-                      ctx.RunClaimActions(jsonDocument.RootElement);
+                          using var jsonDocument = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync());
+                          ctx.RunClaimActions(jsonDocument.RootElement);
+                      },
+                      OnRedirectToAuthorizationEndpoint = ctx =>
+                      {
+                          ctx.Response.Redirect(ctx.RedirectUri + "&prompt=consent");
+                          return Task.CompletedTask;
+                      }
                   };
 
               });

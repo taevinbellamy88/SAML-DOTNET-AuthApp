@@ -1,4 +1,4 @@
-﻿namespace SAML_Auth_MC
+﻿namespace SAML_Auth_MC.Models
 {
     public class GoogleCallbackModel
     {

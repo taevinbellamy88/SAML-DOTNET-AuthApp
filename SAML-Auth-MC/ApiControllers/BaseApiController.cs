@@ -1,7 +1,8 @@
 ﻿using Microsoft.AspNetCore.Mvc;
+using SAML_Auth_MC.Responses;
 using System.Net;
 
-namespace SAML_Auth_MC
+namespace SAML_Auth_MC.ApiControllers
 {
     [ApiController]
     public class BaseApiController : ControllerBase
@@ -9,7 +10,7 @@ namespace SAML_Auth_MC
         protected ILogger Logger { get; set; }
         public BaseApiController(ILogger logger)
         {
-            logger.LogInformation($"Controller Firing {this.GetType().Name} ");
+            logger.LogInformation($"Controller Firing {GetType().Name} ");
             Logger = logger;
         }
 

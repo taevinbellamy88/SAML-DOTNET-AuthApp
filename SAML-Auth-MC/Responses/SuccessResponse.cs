@@ -1,10 +1,10 @@
-﻿namespace SAML_Auth_MC
+﻿namespace SAML_Auth_MC.Responses
 {
     public class SuccessResponse : BaseResponse
     {
         public SuccessResponse()
         {
-            this.IsSuccessful = true;
+            IsSuccessful = true;
         }
     }
 }

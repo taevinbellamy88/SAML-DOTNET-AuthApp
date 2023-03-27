@@ -1,9 +1,10 @@
 ﻿using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Mvc;
+using SAML_Auth_MC.Models;
 using System.Security.Claims;
 
-namespace SAML_Auth_MC
+namespace SAML_Auth_MC.ApiControllers
 {
     public class LoginModuleController : Controller
     {
