@@ -22,6 +22,11 @@ namespace SAML_Auth_MC.ApiControllers
         public AuthApiController(ILogger<AuthApiController> logger) : base(logger)
         { }
 
+
+        /// <summary>
+        /// Initial Ping
+        /// </summary>
+        /// <returns></returns>
         [HttpGet("ping")]
         [AllowAnonymous]
         public ActionResult<ItemResponse<object>> Ping()
@@ -109,7 +114,6 @@ namespace SAML_Auth_MC.ApiControllers
         /// <summary>
         /// initiates the SAML2 authentication
         /// </summary>
-        /// <returns></returns>
         [HttpGet("initiate-saml")]
         [AllowAnonymous]
         public IActionResult InitiateSaml()
@@ -120,7 +124,6 @@ namespace SAML_Auth_MC.ApiControllers
         /// <summary>
         /// SAML Handler
         /// </summary>
-        /// <returns></returns>
         [HttpGet("signin-saml")]
         [Authorize]
         public async Task<IActionResult> OnSAML2_AzureAD_SignIn()
