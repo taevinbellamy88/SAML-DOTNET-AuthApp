@@ -234,7 +234,7 @@ namespace SAML_Auth_MC.ApiControllers
         /// <returns></returns>
         [HttpPost("callbacks/google")]
         [AllowAnonymous]
-        public async Task<IActionResult> LoginGoogleUser(string credential, string g_csrf_token)
+        public Task<IActionResult> LoginGoogleUser(string credential, string g_csrf_token)
         {
             try
             {
@@ -248,29 +248,20 @@ namespace SAML_Auth_MC.ApiControllers
                 // Authenticate the user with your application
                 // ... (authenticate the user and create a session or a local identity)
 
-                return Ok();
+                return Task.FromResult<IActionResult>(Ok());
             }
             catch (NotAuthorizedException e)
             {
                 Console.WriteLine($"Authentication failed for user: {e.Message}");
-                return Unauthorized();
+                return Task.FromResult<IActionResult>(Unauthorized());
             }
             catch (Exception e)
             {
                 Console.WriteLine($"Error authenticating user: {e.Message}");
-                return StatusCode(500, e.Message);
+                return Task.FromResult<IActionResult>(StatusCode(500, e.Message));
             }
         }
 
-        private async Task ValidateGoogleIdTokenAsync(object idToken)
-        {
-            throw new NotImplementedException();
-        }
-
-        private async Task GetGoogleAccessTokenAsync(string credential)
-        {
-            throw new NotImplementedException();
-        }
     }
 }
 
