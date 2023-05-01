@@ -19,8 +19,12 @@ namespace SAML_Auth_MC.ApiControllers
     [EnableCors("CorsPolicy")]
     public class AuthApiController : BaseApiController
     {
+        private readonly ILogger _logger;
+
         public AuthApiController(ILogger<AuthApiController> logger) : base(logger)
-        { }
+        {
+            _logger = logger;
+        }
 
 
         /// <summary>
@@ -59,6 +63,7 @@ namespace SAML_Auth_MC.ApiControllers
         public async Task<IActionResult> LoginNativeUser(UserAddModel user)
         {
             Console.WriteLine($"LoginAPI Firing.... {user.Email} {user.FirstName}");
+            var claimsPrincipal = User as ClaimsPrincipal;
 
             var clientId = "6dbu1e0o0sa7bhak7k6118144m";
             var userPoolId = "us-west-2_aBw5Unwau";
@@ -87,9 +92,27 @@ namespace SAML_Auth_MC.ApiControllers
                 var authenticationResult = response.AuthenticationResult;
                 if (authenticationResult != null)
                 {
-                    Console.WriteLine($"User {user.Email} authenticated successfully.");
+                    // Create a ClaimsIdentity with the necessary claims
+                    var claims = new List<Claim>
+                    {
+                        new Claim(ClaimTypes.Name, (user.FirstName + " " + user.LastName)),
+                        new Claim(ClaimTypes.Email, user.Email),
+                        new Claim(ClaimTypes.NameIdentifier, user.Email), // Add this line to include the NameIdentifier claim
+                        // Add other claims as needed
+                    };
+
+                    // Create a ClaimsIdentity using the claims from the authenticated user.
+                    var claimsIdentity = new ClaimsIdentity(claimsPrincipal.Claims, CookieAuthenticationDefaults.AuthenticationScheme);
+
+
+                    // Set authentication cookies
+
+                    await HttpContext.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, new ClaimsPrincipal(claimsIdentity));
+
 
                     // You can return an access token or other user information here
+                    Console.WriteLine($"LoginAPI Successfull.... {user.Email} {user.FirstName}");
+
                     return Ok(authenticationResult);
                 }
                 else
@@ -110,7 +133,43 @@ namespace SAML_Auth_MC.ApiControllers
             }
 
         }
+        /// <summary>
+        /// Initiates the User authentication
+        /// </summary>
+        /// <returns></returns>
+        [HttpGet("isAuthenticated")]
+        [AllowAnonymous]
+        public IActionResult AuthenticateUser()
+        {
+            _logger.LogInformation($"User.Identity.IsAuthenticated: {User.Identity.IsAuthenticated}");
 
+            if (User.Identity.IsAuthenticated)
+            {
+                var displayName = User.FindFirst("http://schemas.microsoft.com/identity/claims/displayname")?.Value;
+                var email = User.FindFirst(ClaimTypes.Email)?.Value;
+                var name = !displayName.IsNullOrEmpty()
+                    ? displayName
+                    : !User.FindFirst(ClaimTypes.GivenName).IsNullOrEmpty()
+                    ? User.FindFirst(ClaimTypes.GivenName)?.Value
+                    : User.FindFirst(ClaimTypes.Name)?.Value;
+                var token = !User.FindFirst("http://schemas.microsoft.com/identity/claims/tenantid").IsNullOrEmpty()
+                    ? User.FindFirst("http://schemas.microsoft.com/identity/claims/tenantid")?.Value
+                    : User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+                _logger.LogInformation($"Email: {email}, Name: {name}, UserId: {token}");
+
+                return Ok(new { token, email, name });
+            }
+            else
+            {
+                foreach (var claim in User.Claims)
+                {
+                    _logger.LogInformation($"ClaimType: {claim.Type}, ClaimValue: {claim.Value}");
+                }
+
+                return Ok(null);
+            }
+        }
         /// <summary>
         /// initiates the SAML2 authentication
         /// </summary>
@@ -156,34 +215,15 @@ namespace SAML_Auth_MC.ApiControllers
             return Redirect(url);
         }
 
-        /// <summary>
-        /// Initiates the User authentication
-        /// </summary>
-        /// <returns></returns>
-        [HttpGet("isAuthenticated")]
-        [AllowAnonymous]
-        public IActionResult AuthenticateUser()
-        {
-            if (User.Identity.IsAuthenticated)
-            {
-                var email = User.FindFirst(ClaimTypes.Email)?.Value;
-                var name = User.FindFirst(ClaimTypes.Name)?.Value;
-                var authenticatedUser = new { Email = email, Name = name };
-                return Ok(authenticatedUser);
-            }
-            else
-            {
-                return Ok(false);
-            }
-        }
-
         [HttpPost("logoutUser")]
         [AllowAnonymous]
         public IActionResult Logout()
         {
+            Console.WriteLine("Logout endpoint hit");
             HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
             return Ok();
         }
+
 
         /// <summary>
         /// initiates the Google authentication

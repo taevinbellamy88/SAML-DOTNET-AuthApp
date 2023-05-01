@@ -43,11 +43,20 @@ namespace SAML_Auth_MC
             services.AddOptions<CognitoOptions>()
                 .Bind(config.GetSection("AWS:Cognito"));
 
-
-            services.ConfigureApplicationCookie(options =>
+            services.Configure<CookiePolicyOptions>(options =>
+            {
+                options.MinimumSameSitePolicy = SameSiteMode.Unspecified;
+                options.HttpOnly = Microsoft.AspNetCore.CookiePolicy.HttpOnlyPolicy.Always;
+                options.Secure = Microsoft.AspNetCore.Http.CookieSecurePolicy.Always;
+            });
+            services.AddAuthentication(options =>
+            {
+                options.DefaultScheme = CookieAuthenticationDefaults.AuthenticationScheme;
+                options.DefaultChallengeScheme = Saml2Defaults.Scheme;
+            }).AddCookie(options =>
             {
                 options.Cookie.Name = "SAML-AUTH-MC";
-                options.Cookie.SameSite = SameSiteMode.None;
+                options.Cookie.SameSite = SameSiteMode.Lax;
                 options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
                 options.Cookie.HttpOnly = true;
                 options.ExpireTimeSpan = TimeSpan.FromDays(14);
@@ -55,31 +64,7 @@ namespace SAML_Auth_MC
                 options.LoginPath = "/Account/Login";
                 options.LogoutPath = "/Account/Logout";
                 options.AccessDeniedPath = "/Account/AccessDenied";
-            });
-            services.Configure<CookiePolicyOptions>(options =>
-            {
-                options.MinimumSameSitePolicy = SameSiteMode.Unspecified;
-                options.HttpOnly = Microsoft.AspNetCore.CookiePolicy.HttpOnlyPolicy.Always;
-                options.Secure = Microsoft.AspNetCore.Http.CookieSecurePolicy.Always;
-            });
-
-
-            // Add authentication services
-            services.AddAuthentication(options =>
-            {
-                // Set the default authentication scheme to cookie
-                options.DefaultScheme = CookieAuthenticationDefaults.AuthenticationScheme;
-                // Set the default challenge scheme to SAML
-                options.DefaultChallengeScheme = Saml2Defaults.Scheme;
-            }).AddCookie(options =>
-            {
-
-                options.Cookie.SameSite = SameSiteMode.Lax;
-                options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
-                options.Cookie.HttpOnly = true;
-                options.ExpireTimeSpan = TimeSpan.FromMinutes(15);
             })
-            // Add SAML2 authentication
             .AddSaml2(options =>
             {
                 // Set the SAML2 configuration options
@@ -98,11 +83,9 @@ namespace SAML_Auth_MC
                     });
 
             })
-
             // Add Google OAuth2 authentication
               .AddOAuth(GoogleOAuthScheme, options =>
               {
-                  // SignInScheme configuration
                   options.SignInScheme = CookieAuthenticationDefaults.AuthenticationScheme;
                   options.ClientId = Environment.GetEnvironmentVariable("GOOGLE_CLIENT_ID");
                   options.ClientSecret = Environment.GetEnvironmentVariable("GOOGLE_CLIENT_SECRET");
@@ -110,11 +93,9 @@ namespace SAML_Auth_MC
                   options.AuthorizationEndpoint = "https://accounts.google.com/o/oauth2/v2/auth";
                   options.TokenEndpoint = "https://www.googleapis.com/oauth2/v4/token";
                   options.UserInformationEndpoint = "https://www.googleapis.com/oauth2/v2/userinfo";
-
                   options.Scope.Add("openid");
                   options.Scope.Add("email");
                   options.Scope.Add("profile");
-
                   options.ClaimActions.MapJsonKey(ClaimTypes.NameIdentifier, "id");
                   options.ClaimActions.MapJsonKey(ClaimTypes.Name, "name");
                   options.ClaimActions.MapJsonKey(ClaimTypes.GivenName, "given_name");
@@ -142,8 +123,6 @@ namespace SAML_Auth_MC
                   };
 
               });
-
-
             services.AddCors(options =>
             {
                 options.AddPolicy("CorsPolicy", builder =>
