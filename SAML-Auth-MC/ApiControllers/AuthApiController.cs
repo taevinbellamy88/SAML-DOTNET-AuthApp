@@ -170,6 +170,7 @@ namespace SAML_Auth_MC.ApiControllers
                 return Ok(null);
             }
         }
+
         /// <summary>
         /// initiates the SAML2 authentication
         /// </summary>
